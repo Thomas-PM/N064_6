@@ -942,24 +942,156 @@ void SR_stage() {
   
 }
 
+int TARGET_PC = 0;
+int TRAP_PC = 0;
+int MEM_PC_MUX = 0;
+int V_MEM_LD_CC = 0;
+int V_MEM_LD_REG = 0;
+int V_MEM_BR_STALL = 0;
 
 /************************* MEM_stage() *************************/
 void MEM_stage() {
-
-  int ii,jj = 0;
+	
+  	int ii,jj = 0;
   
-  /* your code for MEM stage goes here */
+	/* your code for MEM stage goes here */
+    int* uinstr = PS.MEM_CS;
+
+    TARGET_PC = 0;
+    TRAP_PC = 0;
+    MEM_PC_MUX = 0;
+    V_MEM_LD_CC = 0;
+    V_MEM_LD_REG = 0;
+    v_mem_br_stall = 0;
+	
+    /* Internal stage signals */
+    int DCACHE_R = 0;
+    int V_DCACHE_EN = 0;
+    int WRITE_WORD = 0;
+    int READ_WORD = 0;
+    int DATA_OUT = 0;
+    int WE0 = 0;
+    int WE1 = 0;
+    /* Internal stage logic */
 
 
+    /* WE Logic */
+	/* in: DATA.SIZE, DCACHE.R/W, MEM.ADDRESS; out: WE1, WE0*/
+    if(Get_DCACHE_RW){
+        if(Get_DATA_SIZE(uinstr)){
+            /* Word address */
+            WE0 = 1;
+            WE1 = 1;
+        }
+        else{
+            /* Byte address */
+            if(PS.MEM_ADDRESS & 0x01){
+                /* Hi byte */
+                WE1 = 1;
+            }
+            else{
+                /* Lo byte */
+                WE0 = 1;
+            }
+        }
+    }
+
+    /* Mem Write Data Logic */
+    /* in: MEMALU.RESULT, DATA.SIZE, MEM.ADDRESS[0]; out: WRITE_WORD */
+    /* TODO verify */
+    if(Get_DATA_SIZE(uinstr)){
+        /* Word */
+        WRITE_WORD = Low16bits(PS.MEM_ALU_RESULT);
+    }
+    else{
+        /* Byte */
+        if(PS.MEM_ADDRESS & 0x01){
+            /* Hi byte */
+            WRITE_WORD = Low16bits(PS.MEM_ALU_RESULT);
+        }
+        else{
+            /* Lo byte */
+            WRITE_WORD = Low16bits(PS.MEM_ALU_RESULT);
+        }
+
+    }
+
+    /* BR Logic */
+    /* in: IR[11:9], MEM.CC, MEM.V, BR.OP, UNCON.OP, TRAP.OP; out: MEM.PCMUX */
+    if(PS.MEM_V){
+        if(Get_TRAP_OP(uinstr)){
+           MEM_PC_MUX = 2;
+        }
+        else if(Get_UNCOND_OP(uinstr)){
+            MEM_PC_MUX = 1;
+        }
+        else if(Get_BR_OP(uinstr)){
+            int nzp = (PS.MEM_IR >> 9) & 0x07;
+            if( (PS.MEM_CC & 0x07) & nzp ){
+                MEM_PC_MUX = 1;
+            }
+            else{
+                MEM_PC_MUX = 0;
+            }
+        }
+        else{
+            MEM_PC_MUX = 0;
+        }
+    }
+
+    /* Valid latching logic */
+    if(PS.MEM_V){
+        V_MEM_LD_CC = Get_MEM_LD_CC(uinstr);
+        V_MEM_LD_REG = Get_MEM_LD_REG(uinstr);
+        v_mem_br_stall = Get_MEM_BR_STALL(uinstr);
+    }
 
 
-  
-  /* The code below propagates the control signals from MEM.CS latch
-     to SR.CS latch. You still need to latch other values into the
-     other SR latches. */
-  for (ii=COPY_SR_CS_START; ii < NUM_MEM_CS_BITS; ii++) {
-    NEW_PS.SR_CS [jj++] = PS.MEM_CS [ii];
-  }
+    /* D-CACHE */
+    V_DCACHE_EN = Get_DCACHE_EN(uinstr) && PS.MEM_V;
+    if(V_DCACHE_EN){    /* MEM.EN */
+        dcache_access( PS.MEM_ADDRESS, &READ_WORD, WRITE_WORD, &DCACHE_R, WE0, WE1);
+    }
+    mem_stall = V_DCACHE_EN && !DCACHE_R;
+
+    /* Mem Read Data Logic */
+    /* in: READ_WORD, DATA.SIZE, MEM.ADDRESS[0]; out: DATA_OUT */
+    if(Get_DATA_SIZE(uinstr)){
+        /* Word */
+        DATA_OUT = Low16bits(READ_WORD);
+    }
+    else{
+        /* Byte */
+        if(PS.MEM_ADDRESS & 0x01){
+            /* Hi byte */
+            DATA_OUT = (READ_WORD >> 8) & 0xFF;
+        }
+        else{
+            /* Lo byte */
+            DATA_OUT = READ_WORD & 0xFF;
+        }
+    }
+
+    TRAP_PC = DATA_OUT;
+    /* Latch forwarding */
+    NEW_PS.SR_ADDRESS = PS.MEM_ADDRESS;
+    NEW_PS.SR_DATA = DATA_OUT;
+    NEW_PS.SR_NPC = PS.MEM_NPC;
+    NEW_PS.SR_ALU_RESULT = PS.MEM_ALU_RESULT;
+    NEW_PS.SR_IR = PS.MEM_IR;
+    NEW_PS.SR_DRID = PS.MEM_DRID;
+
+    /* SR Valid Logic */
+    /* TODO: Verify */
+    NEW_PS.SR_V  = V_MEM_BR_STALL || mem_stall; 
+
+
+	/* The code below propagates the control signals from MEM.CS latch
+	 to SR.CS latch. You still need to latch other values into the
+	 other SR latches. */
+	for (ii=COPY_SR_CS_START; ii < NUM_MEM_CS_BITS; ii++) {
+        NEW_PS.SR_CS [jj++] = PS.MEM_CS [ii];
+	}
 
 }
 
