@@ -1131,7 +1131,7 @@ void AGEX_stage() {
 		 signal */
 
 	/* your code for AGEX stage goes here */
-    int uinst = PS.AGEX_CS;
+    int* uinst = PS.AGEX_CS;
     V_AGEX_LD_CC = 0;
     V_AGEX_LD_REG = 0;
     V_AGEX_BR_STALL = 0;
@@ -1196,7 +1196,7 @@ void AGEX_stage() {
         V_AGEX_BR_STALL = Get_AGEX_BR_STALL(uinstr);
     }
 
-    /* LD_MEM Logic */
+    /* Bubble/ Stall Logic */
     /* TODO */ 
 
 
@@ -1230,15 +1230,37 @@ void DE_stage() {
       LD.AGEX signal */
 
     /* your code for DE stage goes here */
+    CONTROL_STORE_ADDRESS = ( (PS.DE_IR >> 10) & 0x3E) + ( (PS.DE_IR >> 5) & 0x01); 
+    int* uinstr = CONTROL_STORE[CONTROL_STORE_ADDRESS];
+
+    /* Internal Stage Signals */
+    int SR2_ID = 0;
+    int opcode = (PS.DE_IR >> 12) & 0x0F;
+
+    SR2_ID = ( (opcode == 3) || (opcode == 7) ) ? (PS.DE_IR >> 9) & 0x07 : PD.DE_IR & 0x07; 
+
+    /* Register File Write */
+    if(v_sr_ld_reg){
+        REGS[PS.SR_DRID] = sr_reg_data;
+    }
+
+    /* BR Stall Logic */
 
 
+    /* Dependency Check Logic */
 
+    /* Bubble/Stall Logic */
 
-
+    
     if (LD_AGEX) {
         /* Your code for latching into AGEX latches goes here */
-
-
+        NEW_PS.AGEX_NPC = PS.DE_NPC;
+        NEW_PS.AGEX_IR = PS.DE_IR;
+        NEW_PS.AGEX_SR1 = REGS[(PS.DE_IR >> 6) & 0x07];
+        NEW_PS.AGEX_SR2 = REGS[SR2_ID]; 
+        NEW_PS.AGEX_CC =
+        NEW_PS.AGEX_DRID = (Get_DRMUX(uinstr)) ? 7 : ( (PS.DE_IR >> 9) & 0x07);
+        NEW_PS.AGEX_V = 
 
 
         /* The code below propagates the control signals from the CONTROL
