@@ -1,6 +1,6 @@
 /*
-    Name 1: Your Name
-    UTEID 1: Your UTEID
+    Name 1: Thomas McRoberts
+    UTEID 1: tpm627
 */
 
 /***************************************************************/
@@ -1095,29 +1095,126 @@ void MEM_stage() {
 
 }
 
+int Shifter(int A, int right, int arithmetic, int amount){
+    /* TODO */
+    printf("Shifter called: A = %i, right? %i, arithmetic? %i, amount = %i", A, right, arithmetic, amount);
+    if(right){
+        int highbits = 0xFF << (16 - amount);
+        if(arithmetic){
+            /* RSHA */
+            int sign = (A >> 16) & 0x01;
+            return Low16bits( (A >> amount) | (highbits * sign) );
+        }
+        else{
+            /* RSHL */
+            return Low16bits( (A >> amount) & (~highbits));
+        }
+    }
+    else{
+        return Low16bits(A << amount);
+    }
 
+
+    printf("Error");
+    return 696969;
+}
 /************************* AGEX_stage() *************************/
+
+int V_AGEX_LD_CC = 0;
+int V_AGEX_LD_REG = 0;
+int V_AGEX_BR_STALL = 0;
+
 void AGEX_stage() {
 
-  int ii, jj = 0;
-  int LD_MEM; /* You need to write code to compute the value of LD.MEM
+	int ii, jj = 0;
+	int LD_MEM; /* You need to write code to compute the value of LD.MEM
 		 signal */
 
-  /* your code for AGEX stage goes here */
+	/* your code for AGEX stage goes here */
+    int uinst = PS.AGEX_CS;
+    V_AGEX_LD_CC = 0;
+    V_AGEX_LD_REG = 0;
+    V_AGEX_BR_STALL = 0;
 
-  
+    /* Internal Stage Signals */
+	int ADDR1 = 0;
+	int ADDR2 = 0;
+    int ADDR_ADD = 0;
+    int SHF = 0;
+    int ALU = 0;
+    int B = 0;
 
-  if (LD_MEM) {
-    /* Your code for latching into MEM latches goes here */
+    
+    /* AG Logic */
+    ADDR1 = (Get_ADDR1MUX(uinst)) ? PS.AGEX_SR1 : PS.AGEX_NPC;
+    switch(Get_ADDR2MUX(uinst)){
+        case 0 : 
+            ADDR2 = 0;
+            break;
+        case 1 : 
+            ADDR2 = sext( (PS.AGEX_IR & 0x3F), 6);
+            break;
+        case 2 :
+            ADDR2 = sext( (PS.AGEX_IR & 0x1FF), 9);
+            break;
+        case 3 : 
+            ADDR2 = sext( (PS.AGEX_IR & 0x7FF), 11);
+            break;
+        default:
+            printf("ADDR1 Error");
+            break;
+    }
+    ADDR2 = (Get_LSHF1(uinst)) ? ADDR2 << 1 : ADDR2;
+    ADDR_ADD = Low16bits(ADDR1 + ADDR2);
+
+    /* ALU Logic */
+    SHF = Shifter(PS.AGEX_SR1, ((PS.AGEX_IR >> 4) & 0x01), ((PS. AGEX_IR >> 5) & 0x01), (PS. AGEX_IR & 0x0F) );
+    B = (Get_SR2MUX(uinst)) ? Low16bits(sext(PS.AGEX_IR 0x1F), 5) : PS.AGEX_SR2; 
+    switch(Get_ALUK(uinst)){
+        case 0 : 
+            ALU = PS.AGEX_SR1 + B;
+            break;
+        case 1 : 
+            ALU = PS.AGEX_SR1 & B;
+            break;
+        case 2 : 
+            ALU = PS.AGEX_SR1 ^ B;
+            break;
+        case 3 :
+            ALU = B;
+            break
+        default:
+            pritnf("ALU Error");
+            break; 
+    }
     
 
-
-    /* The code below propagates the control signals from AGEX.CS latch
-       to MEM.CS latch. */
-    for (ii = COPY_MEM_CS_START; ii < NUM_AGEX_CS_BITS; ii++) {
-      NEW_PS.MEM_CS [jj++] = PS.AGEX_CS [ii]; 
+    /* Dependency Latching Logic */
+    if(PS.AGEX_V){
+        V_AGEX_LD_CC = Get_AGEX_LD_CC(uinst);
+        V_AGEX_LD_REG = Get_AGEX_LD_REG(uinst);
+        V_AGEX_BR_STALL = Get_AGEX_BR_STALL(uinstr);
     }
-  }
+
+    /* LD_MEM Logic */
+    /* TODO */ 
+
+
+	if (LD_MEM) {
+		/* Your code for latching into MEM latches goes here */
+        NEW_PS.MEM_ADDRESS = (Get_ADDRESSMUX(uinst)) ? ADDR_ADD : (PS.AGEX_IR << 1) & 0x1FF;
+        NEW_PS.MEM_NPC = PS.AGEX_NPC;
+        NEW_PS.MEM_CC = PS.AGEX_CC;
+        NEW_PS.MEM_ALU_RESULT = (Get_ALU_RESULTMUX(uinst)) ? ALU : SHF;
+        NEW_PS.MEM_IR = PS.AGEX_IR;
+        NEW_PS.MEM_DRID = PS.AGEX_DRID;
+
+		/* The code below propagates the control signals from AGEX.CS latch
+		   to MEM.CS latch. */
+		for (ii = COPY_MEM_CS_START; ii < NUM_AGEX_CS_BITS; ii++) {
+			NEW_PS.MEM_CS [jj++] = PS.AGEX_CS [ii]; 
+		}
+	}
 }
 
 
@@ -1125,31 +1222,31 @@ void AGEX_stage() {
 /************************* DE_stage() *************************/
 void DE_stage() {
 
-  int CONTROL_STORE_ADDRESS;  /* You need to implement the logic to
-			         set the value of this variable. Look
-			         at the figure for DE stage */ 
-  int ii, jj = 0;
-  int LD_AGEX; /* You need to write code to compute the value of
-		  LD.AGEX signal */
+    int CONTROL_STORE_ADDRESS;  /* You need to implement the logic to
+                 set the value of this variable. Look
+                 at the figure for DE stage */ 
+    int ii, jj = 0;
+    int LD_AGEX; /* You need to write code to compute the value of
+      LD.AGEX signal */
 
-  /* your code for DE stage goes here */
-
-  
+    /* your code for DE stage goes here */
 
 
 
-  if (LD_AGEX) {
-    /* Your code for latching into AGEX latches goes here */
-    
+
+
+    if (LD_AGEX) {
+        /* Your code for latching into AGEX latches goes here */
 
 
 
-    /* The code below propagates the control signals from the CONTROL
-       STORE to the AGEX.CS latch. */
-    for (ii = COPY_AGEX_CS_START; ii< NUM_CONTROL_STORE_BITS; ii++) {
-      NEW_PS.AGEX_CS[jj++] = CONTROL_STORE[CONTROL_STORE_ADDRESS][ii];
+
+        /* The code below propagates the control signals from the CONTROL
+           STORE to the AGEX.CS latch. */
+        for (ii = COPY_AGEX_CS_START; ii< NUM_CONTROL_STORE_BITS; ii++) {
+          NEW_PS.AGEX_CS[jj++] = CONTROL_STORE[CONTROL_STORE_ADDRESS][ii];
+        }
     }
-  }
 
 }
 
