@@ -1125,7 +1125,6 @@ int Shifter(int A, int right, int arithmetic, int amount){
 
 int V_AGEX_LD_CC = 0;
 int V_AGEX_LD_REG = 0;
-int V_AGEX_BR_STALL = 0;
 
 void AGEX_stage() {
 
@@ -1137,7 +1136,7 @@ void AGEX_stage() {
     int* uinstr = PS.AGEX_CS;
     V_AGEX_LD_CC = 0;
     V_AGEX_LD_REG = 0;
-    V_AGEX_BR_STALL = 0;
+    v_agex_br_stall = 0;
 
     /* Internal Stage Signals */
 	int ADDR1 = 0;
@@ -1197,7 +1196,7 @@ void AGEX_stage() {
     if(PS.AGEX_V){
         V_AGEX_LD_CC = Get_AGEX_LD_CC(uinstr);
         V_AGEX_LD_REG = Get_AGEX_LD_REG(uinstr);
-        V_AGEX_BR_STALL = Get_AGEX_BR_STALL(uinstr);
+        v_agex_br_stall = Get_AGEX_BR_STALL(uinstr);
     }
 
     /* Stall Logic */
@@ -1224,7 +1223,6 @@ void AGEX_stage() {
 
 
 /************************* DE_stage() *************************/
-int V_DE_BR_STALL = 0;
 void DE_stage() {
 
     int CONTROL_STORE_ADDRESS;  /* You need to implement the logic to
@@ -1251,7 +1249,7 @@ void DE_stage() {
     }
 
     /* BR Stall Logic */
-    V_DE_BR_STALL = (PS.DE_V && Get_DE_BR_STALL(uinstr)) ? 1 : 0;
+    v_de_br_stall = (PS.DE_V && Get_DE_BR_STALL(uinstr)) ? 1 : 0;
 
     /* Dependency Check Logic */
     /* in: SR1.NEEDED, SR2.NEEDED, DE.BR.OP, *.LD.CC, *.LD.REG, *.DRID, out: DEP.STALL */
@@ -1340,7 +1338,7 @@ void FETCH_stage() {
     /* I-CACHE access */
     icache_access(PC, &instruciton, &ICACHE_R);
     
-    LD_PC = (ICACHE_R == 0 || dep_stall || mem_stall || v_de_br_stall || v_agex_br_stall || v_mem_br_stall) ? 0 : 1;
+    LD_PC = (ICACHE_R == 0 || dep_stall || mem_stall || v_de_br_stall || v_agex_br_stall) ? 0 : 1;
     LD_DE = (dep_stall || mem_stall) ? 0 : 1;
     
     if(LD_PC){
