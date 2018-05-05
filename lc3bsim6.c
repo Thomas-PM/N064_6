@@ -1010,7 +1010,7 @@ void MEM_stage() {
         /* Byte */
         if(PS.MEM_ADDRESS & 0x01){
             /* Hi byte */
-            WRITE_WORD = Low16bits(PS.MEM_ALU_RESULT);
+            WRITE_WORD = Low16bits(PS.MEM_ALU_RESULT << 8);
         }
         else{
             /* Lo byte */
@@ -1050,13 +1050,12 @@ void MEM_stage() {
     }
 
 
-    /* D-CACHE */
+    /* D-CACHE access */
     V_DCACHE_EN = Get_DCACHE_EN(uinstr) && PS.MEM_V;
     if(V_DCACHE_EN){    /* MEM.EN */
         dcache_access( PS.MEM_ADDRESS, &READ_WORD, WRITE_WORD, &DCACHE_R, WE0, WE1);
     }
     mem_stall = V_DCACHE_EN && !DCACHE_R;
-
     /* Mem Read Data Logic */
     /* in: READ_WORD, DATA.SIZE, MEM.ADDRESS[0]; out: DATA_OUT */
     if(Get_DATA_SIZE(uinstr)){
