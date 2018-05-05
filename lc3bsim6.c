@@ -787,7 +787,7 @@ void dcache_access(int dcache_addr, int *read_word, int write_word, int *dcache_
   int random = CYCLE_COUNT % 9;
 
   if (!random) {
-    *dcache_r = 0;
+    *dcache_r = 0; 
     *read_word = 0xfeed ;
   }
   else {
@@ -960,7 +960,7 @@ void MEM_stage() {
 	/* your code for MEM stage goes here */
     int* uinstr = PS.MEM_CS;
 
-    TARGET_PC = 0;
+    TARGET_PC = PS.MEM_ADDRESS;
     TRAP_PC = 0;
     MEM_PC_MUX = 0;
     V_MEM_LD_CC = 0;
@@ -980,7 +980,7 @@ void MEM_stage() {
 
     /* WE Logic */
 	/* in: DATA.SIZE, DCACHE.R/W, MEM.ADDRESS; out: WE1, WE0*/
-    if(Get_DCACHE_RW){
+    if(Get_DCACHE_RW(uinstr)){
         if(Get_DATA_SIZE(uinstr)){
             /* Word address */
             WE0 = 1;
@@ -1066,11 +1066,13 @@ void MEM_stage() {
         /* Byte */
         if(PS.MEM_ADDRESS & 0x01){
             /* Hi byte */
-            DATA_OUT = (READ_WORD >> 8) & 0xFF;
+            printf("Reading Hi Byte of 0x%4x\n", READ_WORD);
+            DATA_OUT = Low16bits( sext( (READ_WORD >> 8) & 0xFF, 8) );
         }
         else{
             /* Lo byte */
-            DATA_OUT = READ_WORD & 0xFF;
+            printf("Reading Lo Byte of 0x%4x\n", READ_WORD);
+            DATA_OUT = Low16bits( sext( READ_WORD & 0xFF, 8) );
         }
     }
 
@@ -1099,7 +1101,7 @@ void MEM_stage() {
 
 int Shifter(int A, int right, int arithmetic, int amount){
     /* TODO */
-    printf("Shifter called: A = %i, right? %i, arithmetic? %i, amount = %i", A, right, arithmetic, amount);
+    printf("Shifter called: A = %i, right? %i, arithmetic? %i, amount = %i\n", A, right, arithmetic, amount);
     if(right){
         int highbits = 0xFF << (16 - amount);
         if(arithmetic){
@@ -1285,7 +1287,7 @@ void DE_stage() {
             Z = sr_z;
             P = sr_p;
         }
-        NEW_PS.AGEX_CC = (v_sr_ld_cc) ? sr_cc_data : 0;
+        NEW_PS.AGEX_CC = ( (N & 0x01) << 2) + ((Z & 0x01) << 1) + (P & 0x01);
         NEW_PS.AGEX_DRID = (Get_DRMUX(uinstr)) ? 7 : ( (PS.DE_IR >> 9) & 0x07);
         NEW_PS.AGEX_V = (PS.DE_V == 0 || dep_stall) ? 0 : 1; /* Insert bubble */
 
