@@ -1066,12 +1066,10 @@ void MEM_stage() {
         /* Byte */
         if(PS.MEM_ADDRESS & 0x01){
             /* Hi byte */
-            printf("Reading Hi Byte of 0x%4x\n", READ_WORD);
             DATA_OUT = Low16bits( sext( (READ_WORD >> 8) & 0xFF, 8) );
         }
         else{
             /* Lo byte */
-            printf("Reading Lo Byte of 0x%4x\n", READ_WORD);
             DATA_OUT = Low16bits( sext( READ_WORD & 0xFF, 8) );
         }
     }
@@ -1255,23 +1253,29 @@ void DE_stage() {
     /* Dependency Check Logic */
     /* in: SR1.NEEDED, SR2.NEEDED, DE.BR.OP, *.LD.CC, *.LD.REG, *.DRID, out: DEP.STALL */
     dep_stall = 0;
-    if(Get_BR_OP(uinstr)){
+    if(Get_DE_BR_OP(uinstr)){
         if(V_AGEX_LD_CC || V_MEM_LD_CC || v_sr_ld_cc){
-            dep_stall = 1;
+            dep_stall = 1; 
         }
     }
     if(Get_SR1_NEEDED(uinstr)){
-        if(SR1_ID == PS.AGEX_DRID && V_AGEX_LD_REG) dep_stall = 1;
-        if(SR1_ID == PS.MEM_DRID && V_MEM_LD_REG) dep_stall = 1;
-        if(SR1_ID == PS.SR_DRID && v_sr_ld_reg) dep_stall = 1;
+        if( (SR1_ID == PS.AGEX_DRID) && V_AGEX_LD_REG) dep_stall = 1;
+        if( (SR1_ID == PS.MEM_DRID) && V_MEM_LD_REG) dep_stall = 1;
+        if( (SR1_ID == PS.SR_DRID) && v_sr_ld_reg) dep_stall = 1;
 
     }
     if(Get_SR2_NEEDED(uinstr)){
-        if(SR2_ID == PS.AGEX_DRID && V_AGEX_LD_REG) dep_stall = 1;
-        if(SR2_ID == PS.MEM_DRID && V_MEM_LD_REG) dep_stall = 1;
-        if(SR2_ID == PS.SR_DRID && v_sr_ld_reg) dep_stall = 1;
+        if( (SR2_ID == PS.AGEX_DRID) && V_AGEX_LD_REG) dep_stall = 1;
+        if( (SR2_ID == PS.MEM_DRID) && V_MEM_LD_REG) dep_stall = 1;
+        if( (SR2_ID == PS.SR_DRID)  && v_sr_ld_reg) dep_stall = 1;
 
     }
+    
+    /*
+    if(dep_stall){
+        printf("DEEPPEPOENFOENRNERNGONRG %i %i %i %i %i %i %i %i %i %i \n", Get_SR1_NEEDED(uinstr), SR1_ID,Get_SR2_NEEDED(uinstr), SR2_ID, V_AGEX_LD_REG, PS.AGEX_DRID, V_MEM_LD_REG, PS.MEM_DRID, v_sr_ld_reg, PS.SR_DRID);
+    }
+    */
 
     /* LD_AGEX (Stall) Logic */
     LD_AGEX = (mem_stall) ? 0 : 1; /* Stall AGEX stage */
@@ -1310,16 +1314,16 @@ void FETCH_stage() {
     
     /* Internal Stage Signals */
     int LD_DE = 0;
-    int ICACHE_R = 0;
+    icache_r = 0;
     int instruciton = 0;
     int toPC = 0;
     int LD_PC = 0;
-
+    int PC_2 = PC + 2;
 
 
     switch(MEM_PC_MUX){
         case 0 :
-            toPC = PC + 2;
+            toPC = PC_2;
             break;
         case 1 :
             toPC = TARGET_PC;
@@ -1337,9 +1341,11 @@ void FETCH_stage() {
 
 
     /* I-CACHE access */
-    icache_access(PC, &instruciton, &ICACHE_R);
-    
-    LD_PC = (ICACHE_R == 0 || dep_stall || mem_stall || v_de_br_stall || v_agex_br_stall) ? 0 : 1;
+    icache_access(PC, &instruciton, &icache_r);
+     
+     
+    LD_PC = ( icache_r == 0 || dep_stall || mem_stall || v_de_br_stall || v_agex_br_stall) ? 0 : 1;
+    LD_PC = ( v_mem_br_stall) ? 1 : LD_PC;
     LD_DE = (dep_stall || mem_stall) ? 0 : 1;
     
     if(LD_PC){
@@ -1348,10 +1354,10 @@ void FETCH_stage() {
 
 
     if(LD_DE){
-        NEW_PS.DE_NPC = PC;
+        NEW_PS.DE_NPC = PC_2;
         NEW_PS.DE_IR = instruciton;
         
-        NEW_PS.DE_V = (ICACHE_R == 0 || v_de_br_stall || v_agex_br_stall || v_mem_br_stall) ? 0 : 1; /* Insert a bubble */
+        NEW_PS.DE_V = (icache_r == 0 || v_de_br_stall || v_agex_br_stall || v_mem_br_stall) ? 0 : 1; /* Insert a bubble */
 
 
     }
